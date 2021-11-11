@@ -70,7 +70,7 @@ function Grant-RsRestItemAccessPolicy
         [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $true)]
         [Alias('RoleName')]
         [ValidateSet("Browser","Content Manager","My Reports","Publisher","Report Builder")]
-        [string]
+        [string[]]
         $Role,
 
         [string]
@@ -134,15 +134,48 @@ function Grant-RsRestItemAccessPolicy
                 }
             }
             
-            $o=[PSCustomObject]@{
-                GroupUserName=$Identity
-                Roles=@([PSCustomObject]@{
-                    Name=$Role
-                    Description=''
-                })
-            }
+#             $o=[PSCustomObject]@{
+#                 GroupUserName=$Identity
+#                 Roles=@([PSCustomObject]@{
+#                     Name=$Role
+#                     Description=''
+#                 })
+#             }
             
-            $response.Policies=$response.Policies+$o
+#             $response.Policies=$response.Policies+$o
+
+            $IdentityPolicies = $response.Policies | Where-Object { $_.GroupUserName -eq $Identity}
+            if ($IdentityPolicies) {
+                foreach ($RoleToAdd in $Role) {
+                    if ($IdentityPolicies.Roles.Name -notcontains $RoleToAdd) {
+                        $IdentityPolicies.Roles += [PSCustomObject]@{
+                            Name = $RoleToAdd
+                            Description = ""
+                        }
+                    }
+                    else {
+                        Write-Verbose "$Identity already has $RoleToAdd role"
+                    }
+                }
+            }
+            else {
+                $NewRoles = @()
+                foreach ($RoleToAdd in $Role) {
+                    if ($NewRoles.Name -notcontains $RoleToAdd) {
+                        $NewRoles += [PSCustomObject]@{
+                            Name = $RoleToAdd
+                            Description = ""
+                        }
+                    }
+                    else {
+                        Write-Verbose "$RoleToAdd is specified multiple times"
+                    }
+                }
+                $response.Policies += [PSCustomObject]@{
+                    GroupUserName = $Identity
+                    Roles = @($NewRoles)
+                }
+            }
             $response.InheritParentPolicy=$false
 
             $payloadJson = $response | ConvertTo-Json -Depth 15
